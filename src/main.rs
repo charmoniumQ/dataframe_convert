@@ -442,11 +442,15 @@ struct SharedOpts {
     ///
     /// - str:max_size
     ///
-    /// - date, time, datetime, and duration take `ifmt=fmt_string` and
+    /// - date, time, and datetime take `ifmt=fmt_string` and
     ///   `ofmt=fmt_string` where fmt_string is a Chrono strptime/stftime
     ///   string. For example `date_col=date:ifmt=%Y-%M-%d`. ifmt influences how
     ///   the column is read, whereas ofmt changes how it is written. Commas and
     ///   backslashes may be escaped by backslashes.
+    ///
+    /// - duration takes `from_int` and `to_int` which indicate that the
+    ///   duration column should be read/written as an integer (in the given
+    ///   time unit). For example `dur=duration:from_int,to_int,unit=ms`.
     ///
     /// - duration and datetime also takes unit=unit_str, where unit_str is ns,
     ///   nano, nanos, nanoseconds, (similar for micros), (similar for millis).
@@ -527,7 +531,11 @@ fn parse_dtype(raw: &str, args: &[String]) -> Result<dataframe_convert::DataType
         "b" | "bool" | "boolean" => DataTypeSer::Bool,
         "date" => DataTypeSer::Date { ifmt, ofmt },
         "time" => DataTypeSer::Time { ifmt, ofmt },
-        "duration" | "timedelta" => DataTypeSer::Duration { ifmt, ofmt, unit },
+        "duration" | "timedelta" => DataTypeSer::Duration {
+            from_int: args.iter().any(|a| *a == "from_int"),
+            to_int: args.iter().any(|a| *a == "to_int"),
+            unit,
+        },
         "dt" | "datetime" => DataTypeSer::Datetime {
             ifmt,
             ofmt,

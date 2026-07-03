@@ -71,8 +71,8 @@ pub enum DtypeMetadata {
 
 #[derive(Debug, Serialize, Default)]
 pub struct DurationInfo {
-    secs: u64,
-    nanos: u32,
+    pub secs: u64,
+    pub nanos: u32,
 }
 
 impl From<std::time::Duration> for DurationInfo {

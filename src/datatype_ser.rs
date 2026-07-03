@@ -36,8 +36,8 @@ pub enum DataTypeSer {
         tz: Option<TimeZone>,
     },
     Duration {
-        ifmt: Option<String>,
-        ofmt: Option<String>,
+        from_int: bool,
+        to_int: bool,
         unit: TimeUnit,
     },
     Categorical,
@@ -87,9 +87,11 @@ impl DataTypeSer {
                     DataType::Datetime(*unit, None)
                 }
             }
-            Self::Duration { ifmt, unit, .. } => {
-                if ifmt.is_some() {
-                    DataType::String
+            Self::Duration {
+                from_int, unit, ..
+            } => {
+                if *from_int {
+                    DataType::Int64
                 } else {
                     DataType::Duration(*unit)
                 }
@@ -154,20 +156,11 @@ impl DataTypeSer {
                 );
             }
             Self::Duration {
-                ifmt: Some(ifmt),
+                from_int: true,
                 unit,
                 ..
             } => {
-                col = col.str().strptime(
-                    DataType::Duration(*unit),
-                    StrptimeOptions {
-                        format: Some(ifmt.into()),
-                        strict: false,
-                        exact: false,
-                        cache: false,
-                    },
-                    lit("raise"),
-                );
+                col = col.cast(DataType::Duration(*unit));
             }
             Self::Datetime {
                 ifmt: Some(ifmt),
@@ -204,9 +197,9 @@ impl DataTypeSer {
                 col = col.dt().strftime(ofmt.as_str());
             }
             Self::Duration {
-                ofmt: Some(ofmt), ..
+                to_int: true, ..
             } => {
-                col = col.dt().strftime(ofmt.as_str());
+                col = col.cast(DataType::Int64);
             }
             Self::Datetime {
                 ofmt: Some(ofmt), ..

@@ -31,6 +31,14 @@ fn dtypes() -> Vec<(String, DataTypeSer)> {
                 tz: None,
             },
         ),
+        (
+            "durations".into(),
+            DataTypeSer::Duration {
+                from_int: true,
+                to_int: true,
+                unit: TimeUnit::Microseconds,
+            },
+        ),
         ("cats".into(), DataTypeSer::Categorical),
     ]
 }
@@ -84,6 +92,11 @@ fn make_df() -> DataFrame {
             .alias("datetimes"),
     )
     .with_column(col("cats").cast(DataTypeSer::Categorical.get_input_datatype()))
+    .with_column(
+        col("ints")
+            .cast(DataType::Duration(TimeUnit::Microseconds))
+            .alias("durations"),
+    )
     .select([
         col("ints"),
         col("floats"),
@@ -91,6 +104,7 @@ fn make_df() -> DataFrame {
         col("bools"),
         col("dates"),
         col("datetimes"),
+        col("durations"),
         col("cats"),
     ])
     .collect()
@@ -195,6 +209,39 @@ fn roundtrip_formats(#[case] out_fmt: OutputFormat, #[case] in_fmt: InputFormat)
                         a.name
                     );
                 }
+            }
+            (
+                DtypeMetadata::Duration {
+                    min: a_min,
+                    max: a_max,
+                    ..
+                },
+                DtypeMetadata::Duration {
+                    min: b_min,
+                    max: b_max,
+                    ..
+                },
+            ) => {
+                assert_eq!(
+                    a_min.secs, b_min.secs,
+                    "duration min secs mismatch: {}",
+                    a.name
+                );
+                assert_eq!(
+                    a_min.nanos, b_min.nanos,
+                    "duration min nanos mismatch: {}",
+                    a.name
+                );
+                assert_eq!(
+                    a_max.secs, b_max.secs,
+                    "duration max secs mismatch: {}",
+                    a.name
+                );
+                assert_eq!(
+                    a_max.nanos, b_max.nanos,
+                    "duration max nanos mismatch: {}",
+                    a.name
+                );
             }
             (
                 DtypeMetadata::Categorical { n_unique: a_nu, .. },

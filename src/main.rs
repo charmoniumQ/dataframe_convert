@@ -373,13 +373,13 @@ fn expand_input_path(path: &std::path::Path) -> Result<Vec<std::path::PathBuf>> 
 ///     $ dataframe-convert metadata input.csv
 ///     (view metadata)
 ///     (notice that the column which should be date is inferred as string due to not matching the default date-format)
-///    
+///     
 ///     $ dataframe-convert metadata --column col_name=date:ifmt=%m/%d/%Y input.csv
 ///     (now the schema looks correct)
-///    
+///     
 ///     $ dataframe-convert convert input.csv output.parquet
 ///     (now we have a parquet file)
-///    
+///     
 ///     $ dataframe-convert metadata output.parquet
 ///     (look at how many bytes we saved for each column)
 ///
@@ -393,7 +393,7 @@ fn expand_input_path(path: &std::path::Path) -> Result<Vec<std::path::PathBuf>> 
 ///     duckdb -c "SELECT C, AVG(D) FROM read_csv_auto('path/to/file.csv') GROUP BY C;"
 ///
 #[derive(Parser)]
-#[command(name = "dataframe_convert")]
+#[command(name = "dataframe_convert", verbatim_doc_comment)]
 struct Cli {
     #[arg(long, hide = true)]
     markdown_help: bool,
@@ -499,6 +499,7 @@ struct SharedOpts {
 ///
 /// All inputs must be in the same format and same schema.
 #[derive(clap::Args)]
+#[command(verbatim_doc_comment)]
 struct CatArgs {
     /// output_format will be inferred if not given.
     ///
@@ -627,6 +628,7 @@ struct CatArgs {
 ///     # END
 ///
 #[derive(clap::Args)]
+#[command(verbatim_doc_comment)]
 struct MetadataArgs {
     #[command(flatten)]
     shared: SharedOpts,

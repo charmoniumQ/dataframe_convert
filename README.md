@@ -12,26 +12,34 @@ This document contains the help content for the `dataframe_convert` command-line
 
 Examples:
 
-$ dataframe-convert metadata input.csv (view metadata) (notice that the column which should be date is inferred as string due to not matching the default date-format)
+    $ dataframe-convert metadata input.csv
+    (view metadata)
+    (notice that the column which should be date is inferred as string due to not matching the default date-format)
+    
+    $ dataframe-convert metadata --column col_name=date:ifmt=%m/%d/%Y input.csv
+    (now the schema looks correct)
+    
+    $ dataframe-convert convert input.csv output.parquet
+    (now we have a parquet file)
+    
+    $ dataframe-convert metadata output.parquet
+    (look at how many bytes we saved for each column)
 
-$ dataframe-convert metadata --column col_name=date:ifmt=%m/%d/%Y input.csv (now the schema looks correct)
+We read dataframes lazily, where possible, so this is suitable for large
+amounts of data.
 
-$ dataframe-convert convert input.csv output.parquet (now we have a parquet file)
+More complex operations than light serialization/deserialization of
+primitive types, concatenatation, converting dataframe formats, are
+out-of-scope. I suggest using duckdb's excellent CLI, e.g.:
 
-$ dataframe-convert metadata output.parquet (look at how many bytes we saved for each column)
-
-We read dataframes lazily, where possible, so this is suitable for large amounts of data.
-
-More complex operations than light serialization/deserialization of primitive types, concatenatation, converting dataframe formats, are out-of-scope. I suggest using duckdb's excellent CLI, e.g.:
-
-duckdb -c "SELECT C, AVG(D) FROM read_csv_auto('path/to/file.csv') GROUP BY C;"
+    duckdb -c "SELECT C, AVG(D) FROM read_csv_auto('path/to/file.csv') GROUP BY C;"
 
 **Usage:** `dataframe_convert <COMMAND>`
 
 ###### **Subcommands:**
 
-* `cat` — Concat input dataframes and convert to output format. Silent on success
-* `metadata` — Print metadata (schema and summary statistics) of input dataframes
+* `cat` — Concat input dataframes and convert to output format. Silent on success.
+* `metadata` — Print metadata (schema and summary statistics) of input dataframes.
 
 
 
@@ -39,11 +47,13 @@ duckdb -c "SELECT C, AVG(D) FROM read_csv_auto('path/to/file.csv') GROUP BY C;"
 
 Concat input dataframes and convert to output format. Silent on success.
 
-Dtypes are automatically inferred for columns not specified via --dtypes; pass --no-infer to disable.
+Dtypes are automatically inferred for columns not specified via --dtypes;
+pass --no-infer to disable.
 
 Examples:
 
-$ dataframe_convert cat a.csv b.csv out.parquet $ dataframe_convert cat --no-infer --dtypes id=int data.json out.parquet
+    $ dataframe_convert cat a.csv b.csv out.parquet
+    $ dataframe_convert cat --no-infer --dtypes id=int data.json out.parquet
 
 All inputs must be in the same format and same schema.
 
@@ -120,7 +130,113 @@ Print metadata (schema and summary statistics) of input dataframes.
 
 Example:
 
-$ dataframe_convert metadata data/sample.csv source: data/sample.csv file_size: 358 mem_size: 162 overhead: 2.2098765432098766 parse_secs: 0.028144523 n_rows: 5 columns: - name: id dtype: u8 count: 5 non_null_count: 5 mem_size: 5 dtype_specific_meta: kind: numeric mean: 3.0 stddev: 1.5811388300841898 quantiles: min: 1.0 25%: 2.0 50%: 3.0 75%: 4.0 max: 5.0 - name: name dtype: str count: 5 non_null_count: 5 mem_size: 19 dtype_specific_meta: kind: categorical n_unique: 5 most_common: Alice: 1 Bob: 1 Carol: 1 - name: score dtype: f64 count: 5 non_null_count: 5 mem_size: 40 dtype_specific_meta: kind: numeric mean: 78.52000000000001 stddev: 20.63545492592785 quantiles: min: 45.1 25%: 72.3 50%: 88.7 75%: 91.0 max: 95.5 - name: active dtype: bool count: 5 non_null_count: 5 mem_size: 1 dtype_specific_meta: kind: categorical n_unique: 2 most_common: 'true': 3 'false': 2 - name: birth_date dtype: date count: 5 non_null_count: 5 mem_size: 20 dtype_specific_meta: kind: datetime unit: ms tz: null - name: created_at dtype: datetime[μs] count: 5 non_null_count: 5 mem_size: 40 dtype_specific_meta: kind: datetime unit: us tz: null - name: session_ms dtype: u16 count: 5 non_null_count: 5 mem_size: 10 dtype_specific_meta: kind: numeric mean: 13900.0 stddev: 17887.70527485289 quantiles: min: 300.0 25%: 5000.0 50%: 7200.0 75%: 12000.0 max: 45000.0 - name: role dtype: str count: 5 non_null_count: 5 mem_size: 27 dtype_specific_meta: kind: categorical n_unique: 3 most_common: admin: 2 user: 2 moderator: 1 # END
+    $ dataframe_convert metadata data/sample.csv
+    source: data/sample.csv
+    file_size: 358
+    mem_size: 162
+    overhead: 2.2098765432098766
+    parse_secs: 0.028144523
+    n_rows: 5
+    columns:
+    - name: id
+      dtype: u8
+      count: 5
+      non_null_count: 5
+      mem_size: 5
+      dtype_specific_meta:
+        kind: numeric
+        mean: 3.0
+        stddev: 1.5811388300841898
+        quantiles:
+          min: 1.0
+          25%: 2.0
+          50%: 3.0
+          75%: 4.0
+          max: 5.0
+    - name: name
+      dtype: str
+      count: 5
+      non_null_count: 5
+      mem_size: 19
+      dtype_specific_meta:
+        kind: categorical
+        n_unique: 5
+        most_common:
+          Alice: 1
+          Bob: 1
+          Carol: 1
+    - name: score
+      dtype: f64
+      count: 5
+      non_null_count: 5
+      mem_size: 40
+      dtype_specific_meta:
+        kind: numeric
+        mean: 78.52000000000001
+        stddev: 20.63545492592785
+        quantiles:
+          min: 45.1
+          25%: 72.3
+          50%: 88.7
+          75%: 91.0
+          max: 95.5
+    - name: active
+      dtype: bool
+      count: 5
+      non_null_count: 5
+      mem_size: 1
+      dtype_specific_meta:
+        kind: categorical
+        n_unique: 2
+        most_common:
+          'true': 3
+          'false': 2
+    - name: birth_date
+      dtype: date
+      count: 5
+      non_null_count: 5
+      mem_size: 20
+      dtype_specific_meta:
+        kind: datetime
+        unit: ms
+        tz: null
+    - name: created_at
+      dtype: datetime[μs]
+      count: 5
+      non_null_count: 5
+      mem_size: 40
+      dtype_specific_meta:
+        kind: datetime
+        unit: us
+        tz: null
+    - name: session_ms
+      dtype: u16
+      count: 5
+      non_null_count: 5
+      mem_size: 10
+      dtype_specific_meta:
+        kind: numeric
+        mean: 13900.0
+        stddev: 17887.70527485289
+        quantiles:
+          min: 300.0
+          25%: 5000.0
+          50%: 7200.0
+          75%: 12000.0
+          max: 45000.0
+    - name: role
+      dtype: str
+      count: 5
+      non_null_count: 5
+      mem_size: 27
+      dtype_specific_meta:
+        kind: categorical
+        n_unique: 3
+        most_common:
+          admin: 2
+          user: 2
+          moderator: 1
+    # END
 
 **Usage:** `dataframe_convert metadata [OPTIONS] [PATHS]...`
 

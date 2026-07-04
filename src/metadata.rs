@@ -1,12 +1,43 @@
 use polars::prelude::*;
 use serde::Serialize;
 
+fn serialize_most_common<S: serde::Serializer>(
+    items: &[(String, usize)],
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    use serde::ser::SerializeMap;
+    let mut m = s.serialize_map(Some(items.len()))?;
+    for (k, v) in items {
+        m.serialize_entry(k, v)?;
+    }
+    m.end()
+}
+
 fn serialize_timeunit<S: serde::Serializer>(tu: &TimeUnit, s: S) -> Result<S::Ok, S::Error> {
     s.serialize_str(match tu {
         TimeUnit::Nanoseconds => "ns",
         TimeUnit::Microseconds => "us",
         TimeUnit::Milliseconds => "ms",
     })
+}
+
+fn serialize_quantiles<S: serde::Serializer>(
+    qs: &[(f64, f64)],
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    use serde::ser::SerializeMap;
+    let mut m = s.serialize_map(Some(qs.len()))?;
+    for (p, v) in qs {
+        let label = if *p == 0.0 {
+            "min".to_string()
+        } else if *p == 1.0 {
+            "max".to_string()
+        } else {
+            format!("{}%", (p * 100.0) as u32)
+        };
+        m.serialize_entry(&label, v)?;
+    }
+    m.end()
 }
 
 fn serialize_tz<S: serde::Serializer>(tz: &Option<TimeZone>, s: S) -> Result<S::Ok, S::Error> {
@@ -43,6 +74,7 @@ pub enum DtypeMetadata {
     Numeric {
         mean: f64,
         stddev: f64,
+        #[serde(serialize_with = "serialize_quantiles")]
         quantiles: Vec<(f64, f64)>,
     },
     Datetime {
@@ -63,6 +95,7 @@ pub enum DtypeMetadata {
     },
     Categorical {
         n_unique: usize,
+        #[serde(serialize_with = "serialize_most_common")]
         n_most_common: Vec<(String, usize)>,
     },
     #[serde(rename = "none")]

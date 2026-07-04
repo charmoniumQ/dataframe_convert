@@ -1,3 +1,4 @@
+use crate::formats::{InputFormat, OutputFormat};
 use anyhow::Result;
 use polars::prelude::*;
 
@@ -36,8 +37,6 @@ pub enum DataTypeSer {
         tz: Option<TimeZone>,
     },
     Duration {
-        from_int: bool,
-        to_int: bool,
         unit: TimeUnit,
     },
     Categorical,
@@ -49,19 +48,37 @@ pub enum DataTypeSer {
 }
 
 impl DataTypeSer {
-    pub fn get_input_datatype(&self) -> DataType {
+    pub fn get_input_datatype(&self, infmt: &InputFormat) -> DataType {
         match self {
             Self::String { .. } => DataType::String,
             Self::Int8 => DataType::Int8,
             Self::Int16 => DataType::Int16,
             Self::Int32 => DataType::Int32,
-            Self::Int64 => DataType::Int64,
+            Self::Int64 => {
+                if matches!(infmt, InputFormat::Json { .. }) {
+                    DataType::String
+                } else {
+                    DataType::Int64
+                }
+            }
+            Self::UInt64 => {
+                if matches!(infmt, InputFormat::Json { .. }) {
+                    DataType::String
+                } else {
+                    DataType::UInt64
+                }
+            }
+            Self::UInt128 => {
+                if matches!(infmt, InputFormat::Json { .. }) {
+                    DataType::String
+                } else {
+                    DataType::UInt128
+                }
+            }
             Self::Int128 => DataType::Int128,
             Self::UInt8 => DataType::UInt8,
             Self::UInt16 => DataType::UInt16,
             Self::UInt32 => DataType::UInt32,
-            Self::UInt64 => DataType::UInt64,
-            Self::UInt128 => DataType::UInt128,
             Self::Float16 => DataType::Float16,
             Self::Float32 => DataType::Float32,
             Self::Float64 => DataType::Float64,
@@ -87,13 +104,11 @@ impl DataTypeSer {
                     DataType::Datetime(*unit, None)
                 }
             }
-            Self::Duration {
-                from_int, unit, ..
-            } => {
-                if *from_int {
-                    DataType::Int64
-                } else {
+            Self::Duration { unit } => {
+                if format_supports_duration_in(infmt) {
                     DataType::Duration(*unit)
+                } else {
+                    DataType::Int64
                 }
             }
             Self::Categorical => DataType::Categorical(
@@ -117,7 +132,7 @@ impl DataTypeSer {
         }
     }
 
-    pub fn deserialize_column(&self, mut col: Expr) -> Expr {
+    pub fn deserialize_column(&self, mut col: Expr, infmt: &InputFormat) -> Expr {
         match self {
             Self::String { strip, max_size } => {
                 if *strip {
@@ -155,12 +170,10 @@ impl DataTypeSer {
                     lit("raise"),
                 );
             }
-            Self::Duration {
-                from_int: true,
-                unit,
-                ..
-            } => {
-                col = col.cast(DataType::Duration(*unit));
+            Self::Duration { unit } => {
+                if !format_supports_duration_in(infmt) {
+                    col = col.cast(DataType::Duration(*unit));
+                }
             }
             Self::Datetime {
                 ifmt: Some(ifmt),
@@ -179,12 +192,21 @@ impl DataTypeSer {
                     lit("raise"),
                 );
             }
+            Self::Int64 if matches!(infmt, InputFormat::Json { .. }) => {
+                col = col.cast(DataType::String);
+            }
+            Self::UInt64 if matches!(infmt, InputFormat::Json { .. }) => {
+                col = col.cast(DataType::String);
+            }
+            Self::UInt128 if matches!(infmt, InputFormat::Json { .. }) => {
+                col = col.cast(DataType::String);
+            }
             _ => {}
         }
         col
     }
 
-    pub fn serialize_column(&self, mut col: Expr) -> Expr {
+    pub fn serialize_column(&self, mut col: Expr, outf: &OutputFormat) -> Expr {
         match self {
             Self::Date {
                 ofmt: Some(ofmt), ..
@@ -196,15 +218,20 @@ impl DataTypeSer {
             } => {
                 col = col.dt().strftime(ofmt.as_str());
             }
-            Self::Duration {
-                to_int: true, ..
-            } => {
-                col = col.cast(DataType::Int64);
+            Self::Duration { unit: _ } => {
+                if !format_supports_duration_out(outf) {
+                    col = col.cast(DataType::Int64);
+                }
             }
             Self::Datetime {
                 ofmt: Some(ofmt), ..
             } => {
                 col = col.dt().strftime(ofmt.as_str());
+            }
+            Self::Int64 | Self::UInt64 | Self::UInt128 => {
+                if matches!(outf, OutputFormat::Json) {
+                    col = col.cast(DataType::String);
+                }
             }
             Self::Uuid => unimplemented!(),
             _ => {}
@@ -213,10 +240,25 @@ impl DataTypeSer {
     }
 }
 
-pub fn datatype_ser_to_schema(column_datatype_sers: &[(String, DataTypeSer)]) -> Schema {
+fn format_supports_duration_in(f: &InputFormat) -> bool {
+    matches!(f, InputFormat::Parquet | InputFormat::Ipc)
+}
+
+fn format_supports_duration_out(f: &OutputFormat) -> bool {
+    matches!(f, OutputFormat::Parquet | OutputFormat::Ipc)
+}
+
+fn format_supports_nesting(f: &OutputFormat) -> bool {
+    matches!(f, OutputFormat::Parquet | OutputFormat::Ipc | OutputFormat::Json)
+}
+
+pub fn datatype_ser_to_schema(
+    column_datatype_sers: &[(String, DataTypeSer)],
+    infmt: &InputFormat,
+) -> Schema {
     let mut s = Schema::default();
     for (col, ds) in column_datatype_sers {
-        s.with_column(col.clone().into(), ds.get_input_datatype());
+        s.with_column(col.clone().into(), ds.get_input_datatype(infmt));
     }
     s
 }
@@ -224,10 +266,11 @@ pub fn datatype_ser_to_schema(column_datatype_sers: &[(String, DataTypeSer)]) ->
 pub fn deserialize_df(
     mut df: LazyFrame,
     column_datatype_sers: &[(String, DataTypeSer)],
+    infmt: &InputFormat,
 ) -> Result<LazyFrame> {
     for (col_name, ds) in column_datatype_sers {
         df = df.with_column(
-            ds.deserialize_column(col(col_name.as_str()))
+            ds.deserialize_column(col(col_name.as_str()), infmt)
                 .alias(col_name.as_str()),
         );
     }
@@ -237,12 +280,39 @@ pub fn deserialize_df(
 pub fn serialize_df(
     mut df: LazyFrame,
     column_datatype_sers: &[(String, DataTypeSer)],
+    outf: &OutputFormat,
 ) -> Result<LazyFrame> {
     for (col_name, ds) in column_datatype_sers {
         df = df.with_column(
-            ds.serialize_column(col(col_name.as_str()))
+            ds.serialize_column(col(col_name.as_str()), outf)
                 .alias(col_name.as_str()),
         );
     }
+
+    if !format_supports_nesting(outf) {
+        let schema = df.collect_schema()?;
+        let specified: std::collections::BTreeSet<&str> = column_datatype_sers
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
+        for (name, dtype) in schema.iter() {
+            if specified.contains(name.as_str()) {
+                continue;
+            }
+            if matches!(dtype, DataType::List(_)) {
+                df = df.with_column(
+                    col(name.as_str())
+                        .list()
+                        .eval(col(PlSmallStr::EMPTY).cast(DataType::String))
+                        .list()
+                        .join(lit(","), true)
+                        .alias(name.as_str()),
+                );
+            } else if matches!(dtype, DataType::Struct(_)) {
+                df = df.with_column(col(name.as_str()).cast(DataType::String).alias(name.as_str()));
+            }
+        }
+    }
+
     Ok(df)
 }

@@ -11,7 +11,7 @@ pub fn write_lf(
     path: PlRefPath,
     column_datatype_sers: &[(String, DataTypeSer)],
 ) -> Result<()> {
-    let lf = serialize_df(df, column_datatype_sers)?;
+    let lf = serialize_df(df, column_datatype_sers, &format)?;
     match format {
         OutputFormat::Csv {
             separator,

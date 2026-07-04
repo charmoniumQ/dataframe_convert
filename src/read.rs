@@ -26,13 +26,13 @@ pub fn read_lf(
     path: PlRefPath,
     column_datatype_sers: &[(String, DataTypeSer)],
 ) -> Result<LazyFrame> {
-    let schema = datatype_ser_to_schema(column_datatype_sers);
+    let schema = datatype_ser_to_schema(column_datatype_sers, &format);
     let schema_overwrites = if schema.is_empty() {
         None
     } else {
         Some(Arc::new(schema))
     };
-    let df = match format {
+    let df = match format.clone() {
         InputFormat::Csv {
             separator,
             has_header,
@@ -73,7 +73,7 @@ pub fn read_lf(
         } => read_ods(path.as_ref(), has_header, schema_overwrites.clone())?.lazy(),
         _ => bail!("Unsupported input format {format:?}"),
     };
-    let df = deserialize_df(df, column_datatype_sers)?;
+    let df = deserialize_df(df, column_datatype_sers, &format)?;
     Ok(df)
 }
 

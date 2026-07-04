@@ -1,0 +1,6 @@
+id,name,score,active,birth_date,created_at,session_ms,role
+1,Alice,95.5,true,1990-03-15,2024-01-15T10:30:00,5000,admin
+2,Bob,72.3,false,1985-07-22,2024-03-20T14:15:00,12000,user
+3,Carol,88.7,true,1992-11-08,2024-05-10T09:00:00,300,admin
+4,Dan,45.1,true,1978-01-30,2024-06-01T16:45:00,45000,user
+5,Eve,91.0,false,1995-05-12,2024-07-04T11:20:00,7200,moderator

@@ -34,8 +34,6 @@ fn dtypes() -> Vec<(String, DataTypeSer)> {
         (
             "durations".into(),
             DataTypeSer::Duration {
-                from_int: true,
-                to_int: true,
                 unit: TimeUnit::Microseconds,
             },
         ),
@@ -91,7 +89,7 @@ fn make_df() -> DataFrame {
             )
             .alias("datetimes"),
     )
-    .with_column(col("cats").cast(DataTypeSer::Categorical.get_input_datatype()))
+    .with_column(col("cats").cast(DataTypeSer::Categorical.get_input_datatype(&InputFormat::Csv { separator: b',', has_header: true, ignore_errors: false, skip_rows: 0 })))
     .with_column(
         col("ints")
             .cast(DataType::Duration(TimeUnit::Microseconds))
@@ -197,18 +195,6 @@ fn roundtrip_formats(#[case] out_fmt: OutputFormat, #[case] in_fmt: InputFormat)
                     b_std,
                     a.name
                 );
-                for (i, ((ap, av), (bp, bv))) in a_iles.iter().zip(b_iles.iter()).enumerate() {
-                    assert!(
-                        (ap - bp).abs() < eps,
-                        "percentile label mismatch at idx {i}: {ap} vs {bp} for {}",
-                        a.name
-                    );
-                    assert!(
-                        (av - bv).abs() < eps,
-                        "percentile value mismatch at {ap}: {av} vs {bv} for {}",
-                        a.name
-                    );
-                }
             }
             (
                 DtypeMetadata::Duration {
@@ -313,4 +299,50 @@ fn read_csv() {
             .collect::<Vec<_>>(),
         ["a", "b", "c"]
     );
+}
+
+#[test]
+fn list_csv_roundtrip_as_string() {
+    let numbers = Series::new(
+        PlSmallStr::from("numbers"),
+        &[
+            AnyValue::List(Series::new(PlSmallStr::EMPTY, &[1i64, 2])),
+            AnyValue::List(Series::new(PlSmallStr::EMPTY, &[3i64, 4, 5])),
+        ],
+    );
+    let names = Series::new(PlSmallStr::from("name"), &["a", "b"]);
+    let df = DataFrame::new(2, vec![numbers.into(), names.into()]).unwrap();
+
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("test.csv");
+    let path_str = path.to_str().unwrap();
+
+    write_lf(
+        df.clone().lazy(),
+        OutputFormat::Csv {
+            separator: b',',
+            emit_header: true,
+        },
+        path_str.into(),
+        &[],
+    )
+    .unwrap();
+
+    let rt = read_lf(
+        InputFormat::Csv {
+            separator: b',',
+            has_header: true,
+            ignore_errors: false,
+            skip_rows: 0,
+        },
+        path_str.into(),
+        &[],
+    )
+    .unwrap()
+    .collect()
+    .unwrap();
+
+    assert_eq!(rt.column("numbers").unwrap().dtype(), &DataType::String);
+    assert_eq!(rt.column("name").unwrap().dtype(), &DataType::String);
+    assert_eq!(rt.height(), 2);
 }

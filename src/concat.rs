@@ -97,8 +97,65 @@ pub fn concat_lf_diagonal(lfs: &[(impl AsRef<str>, LazyFrame)]) -> Result<LazyFr
         .iter()
         .map(|(label, lf)| (label.as_ref().to_string(), lf.clone()))
         .collect();
-    match debug_concat(&mut bufs, UnionArgs::default())? {
+    match debug_concat(
+        &mut bufs,
+        UnionArgs {
+            to_supertypes: true,
+            ..Default::default()
+        },
+    )? {
         Ok(lf) => Ok(lf),
         Err(errs) => anyhow::bail!("concat incompatibilities: {errs:?}",),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn u8_u16_promotes_to_u16() {
+        let a = df!("x" => &[1u8, 2, 3]).unwrap().lazy();
+        let b = df!("x" => &[1000u16, 2000u16]).unwrap().lazy();
+        let result = concat_lf_diagonal(&[("a", a), ("b", b)])
+            .unwrap()
+            .collect()
+            .unwrap();
+        assert_eq!(result.column("x").unwrap().dtype(), &DataType::UInt16);
+        assert_eq!(result.height(), 5);
+    }
+
+    #[test]
+    fn u32_i32_promotes_to_i64() {
+        let a = df!("v" => &[1u32, 2u32, 3u32]).unwrap().lazy();
+        let b = df!("v" => &[1i32, 2i32, 3i32]).unwrap().lazy();
+        let result = concat_lf_diagonal(&[("a", a), ("b", b)])
+            .unwrap()
+            .collect()
+            .unwrap();
+        assert_eq!(result.column("v").unwrap().dtype(), &DataType::Int64);
+    }
+
+    #[test]
+    fn int_float_promotes_to_float() {
+        let a = df!("y" => &[1i64, 2, 3]).unwrap().lazy();
+        let b = df!("y" => &[1.5f64, 3.14f64]).unwrap().lazy();
+        let result = concat_lf_diagonal(&[("a", a), ("b", b)])
+            .unwrap()
+            .collect()
+            .unwrap();
+        assert_eq!(result.column("y").unwrap().dtype(), &DataType::Float64);
+    }
+
+    #[test]
+    fn same_type_no_promotion() {
+        let a = df!("x" => &[1i64, 2]).unwrap().lazy();
+        let b = df!("x" => &[3i64, 4]).unwrap().lazy();
+        let result = concat_lf_diagonal(&[("a", a), ("b", b)])
+            .unwrap()
+            .collect()
+            .unwrap();
+        assert_eq!(result.column("x").unwrap().dtype(), &DataType::Int64);
+        assert_eq!(result.height(), 4);
     }
 }

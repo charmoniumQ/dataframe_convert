@@ -188,93 +188,6 @@ enum DetectedType {
     String,
 }
 
-const DETECT_SAMPLE: usize = 100;
-
-fn detect_column_type(series: &Series) -> DetectedType {
-    let ca = series.str().unwrap();
-    let sample: Vec<&str> = ca
-        .into_iter()
-        .flatten()
-        .filter(|s| !s.trim().is_empty())
-        .take(DETECT_SAMPLE)
-        .collect();
-
-    if sample.is_empty() {
-        return DetectedType::String;
-    }
-
-    if sample.iter().all(|s| s.parse::<i64>().is_ok()) {
-        return DetectedType::Integer;
-    }
-
-    if sample.iter().all(|s| s.parse::<f64>().is_ok()) {
-        return DetectedType::Float;
-    }
-
-    let bool_set: &[&str] = &[
-        "true", "false", "TRUE", "FALSE", "True", "False", "t", "f", "T", "F", "yes", "no", "YES",
-        "NO", "Yes", "No",
-    ];
-    if sample.iter().all(|s| bool_set.contains(s)) {
-        return DetectedType::Bool;
-    }
-
-    let datetime_formats: &[(&str, bool)] = &[
-        ("%Y-%m-%d %H:%M:%S", true),
-        ("%Y-%m-%dT%H:%M:%S", true),
-        ("%m/%d/%Y %H:%M:%S", true),
-        ("%d/%m/%Y %H:%M:%S", true),
-        ("%Y/%m/%d %H:%M:%S", true),
-        ("%m/%d/%Y %H:%M", true),
-        ("%Y-%m-%d", false),
-        ("%m/%d/%Y", false),
-        ("%d/%m/%Y", false),
-        ("%Y/%m/%d", false),
-        ("%m-%d-%Y", false),
-        ("%d-%m-%Y", false),
-    ];
-
-    for (fmt, is_dt) in datetime_formats {
-        if sample.iter().all(|s| matches_format(s, fmt)) {
-            return if *is_dt {
-                DetectedType::Datetime(fmt.to_string())
-            } else {
-                DetectedType::Date(fmt.to_string())
-            };
-        }
-    }
-
-    DetectedType::String
-}
-
-fn matches_format(s: &str, fmt: &str) -> bool {
-    if s.len() != fmt.len() {
-        return false;
-    }
-    for (sc, fc) in s.chars().zip(fmt.chars()) {
-        match fc {
-            '%' => continue,
-            _ => {
-                if sc != fc {
-                    return false;
-                }
-            }
-        }
-    }
-    let mut fmt_chars = fmt.chars();
-    let mut s_chars = s.chars();
-    while let Some(fc) = fmt_chars.next() {
-        let sc = s_chars.next().unwrap();
-        if fc == '%' {
-            fmt_chars.next();
-            if !sc.is_ascii_digit() {
-                return false;
-            }
-        }
-    }
-    true
-}
-
 fn schema_to_detected(dtype: &DataType) -> DetectedType {
     match dtype {
         DataType::Int8
@@ -305,12 +218,10 @@ fn detect_and_cast(df: DataFrame, schema: Option<&Schema>) -> Result<DataFrame> 
     let detections: Vec<DetectedType> = col_names
         .iter()
         .map(|n| {
-            if let Some(s) = schema.and_then(|s| s.get(n.as_str())) {
-                schema_to_detected(s)
-            } else {
-                let col = df.column(n.as_str()).unwrap();
-                detect_column_type(col.as_materialized_series())
-            }
+            schema
+                .and_then(|s| s.get(n.as_str()))
+                .map(schema_to_detected)
+                .unwrap_or(DetectedType::String)
         })
         .collect();
 

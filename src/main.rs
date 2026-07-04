@@ -1,11 +1,13 @@
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
+use dataframe_convert::datatype_ser::datatype_ser_to_schema;
+use dataframe_convert::infer::{DateLocale, infer_df};
 use dataframe_convert::{InputFormat, OutputFormat};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Command::Convert(args) => {
+        Command::Cat(args) => {
             let (inputs, output) = args.paths.split_at(args.paths.len() - 1);
             let output = &output[0];
             let out_fmt = if args.output_format.is_empty() {
@@ -27,9 +29,15 @@ fn main() -> Result<()> {
                 .filter_map(|p| p.to_str())
                 .map(|s| strip_colon(s).into())
                 .collect();
-            let dfs = dataframe_convert::read::read_lfs(in_fmt, &pl_inputs, &args.shared.column)
+            let dfs = dataframe_convert::read::read_lfs(in_fmt.clone(), &pl_inputs, &args.shared.column)
                 .context("setting up reader")?;
             let lf = dataframe_convert::concat_lf_diagonal(&dfs).context("concatenating")?;
+            let lf = if !args.shared.no_infer {
+                let schema = datatype_ser_to_schema(&args.shared.column, &in_fmt);
+                infer_df(lf, &schema, DateLocale::Auto)
+            } else {
+                lf
+            };
             dataframe_convert::write::write_lf(
                 lf,
                 out_fmt,
@@ -52,11 +60,16 @@ fn main() -> Result<()> {
                 let start = std::time::Instant::now();
                 let pl_path: polars::prelude::PlRefPath =
                     strip_colon(path.to_str().context("non-utf8 path")?).into();
-                let df =
+                let lf =
                     dataframe_convert::read::read_lf(in_fmt.clone(), pl_path, &args.shared.column)
-                        .context("setting up reader")?
-                        .collect()
-                        .context("lf->df")?;
+                        .context("setting up reader")?;
+                let lf = if !args.shared.no_infer {
+                    let schema = datatype_ser_to_schema(&args.shared.column, &in_fmt);
+                    infer_df(lf, &schema, DateLocale::Auto)
+                } else {
+                    lf
+                };
+                let df = lf.collect().context("lf->df")?;
                 let end = std::time::Instant::now();
                 let path_str = path.display().to_string();
                 let file_size = std::fs::metadata(strip_colon(&path_str))
@@ -351,20 +364,20 @@ fn expand_input_path(path: &std::path::Path) -> Result<Vec<std::path::PathBuf>> 
 }
 
 ///
-/// ```
-/// $ dataframe-convert metadata input.csv
-/// (view metadata)
-/// (notice that the column which should be date is inferred as string due to not matching the default date-format)
-///
-/// $ dataframe-convert metadata --column col_name=date:ifmt=%m/%d/%Y input.csv
-/// (now the schema looks correct)
-///
-/// $ dataframe-convert convert input.csv output.parquet
-/// (now we have a parquet file)
-///
-/// $ dataframe-convert metadata output.parquet
-/// (look at how many bytes we saved for each column)
-/// ```
+/// Examples:
+/// 
+///     $ dataframe-convert metadata input.csv
+///     (view metadata)
+///     (notice that the column which should be date is inferred as string due to not matching the default date-format)
+///    
+///     $ dataframe-convert metadata --column col_name=date:ifmt=%m/%d/%Y input.csv
+///     (now the schema looks correct)
+///    
+///     $ dataframe-convert convert input.csv output.parquet
+///     (now we have a parquet file)
+///    
+///     $ dataframe-convert metadata output.parquet
+///     (look at how many bytes we saved for each column)
 ///
 /// We read dataframes lazily, where possible, so this is suitable for large
 /// amounts of data.
@@ -373,9 +386,8 @@ fn expand_input_path(path: &std::path::Path) -> Result<Vec<std::path::PathBuf>> 
 /// primitive types, concatenatation, converting dataframe formats, are
 /// out-of-scope. I suggest using duckdb's excellent CLI, e.g.:
 ///
-/// ```
-/// duckdb -c "SELECT C, AVG(D) FROM read_csv_auto('path/to/file.csv') GROUP BY C;"
-/// ```
+///     duckdb -c "SELECT C, AVG(D) FROM read_csv_auto('path/to/file.csv') GROUP BY C;"
+///
 #[derive(Parser)]
 #[command(name = "dataframe_convert")]
 struct Cli {
@@ -385,7 +397,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    Convert(ConvertArgs),
+    Cat(CatArgs),
     Metadata(MetadataArgs),
 }
 
@@ -395,7 +407,7 @@ struct SharedOpts {
     ///
     /// Supports: CSV/TSV, Parquet, JSON, IPC (arrow), XLSX, XLS, ODS, SQLite, DuckDB
     ///
-    /// Supports additional args like `xlsx:flag1,flag2,key1=val1,key2=val2`:
+    /// Supports additional args like `xlsx:flag,key=val`:
     ///
     /// - Spreadsheet types (`csv`, `xlsx`, `xls`, `ods`) support `no_header` flag
     ///
@@ -448,25 +460,39 @@ struct SharedOpts {
     ///   the column is read, whereas ofmt changes how it is written. Commas and
     ///   backslashes may be escaped by backslashes.
     ///
-    /// - duration takes `from_int` and `to_int` which indicate that the
-    ///   duration column should be read/written as an integer (in the given
-    ///   time unit). For example `dur=duration:from_int,to_int,unit=ms`.
+    /// - duration takes `unit=unit_str`, where unit_str is ns, nano, nanos,
+    ///   nanoseconds, (similar for micros), (similar for millis). Duration
+    ///   columns are de/serialized natively for formats that support them
+    ///   (Parquet, IPC); for CSV, JSON, etc. they are de/serialized as integers.
+    ///   For example `dur=duration:unit=ms`.
     ///
-    /// - duration and datetime also takes unit=unit_str, where unit_str is ns,
-    ///   nano, nanos, nanoseconds, (similar for micros), (similar for millis).
-    ///   Internally, Polars will use an integer number of these units.
+    /// - datetime also takes unit=unit_str, where unit_str is ns, nano, nanos,
+    ///   nanoseconds, (similar for micros), (similar for millis). Internally,
+    ///   Polars will use an integer number of these units.
     ///
     /// - datetime:tz=tz_str, where tz_str is `UTC` or `Area/Location` format.
     ///   See <https://en.wikipedia.org/wiki/List_of_tz_database_time_zones>
     #[arg(long = "dtypes", value_parser = parse_col_spec)]
     column: Vec<(String, dataframe_convert::DataTypeSer)>,
+
+    /// Skip automatic dtype inference for unspecified columns.
+    #[arg(short = 'N', long)]
+    no_infer: bool,
 }
 
-/// Concat all input dataframes, convert to output dataframe format.
+/// Concat input dataframes and convert to output format. Silent on success.
+///
+/// Dtypes are automatically inferred for columns not specified via --dtypes;
+/// pass --no-infer to disable.
+///
+/// Examples:
+///
+///   $ dataframe_convert cat a.csv b.csv out.parquet
+///   $ dataframe_convert cat --no-infer --dtypes id=int data.json out.parquet
 ///
 /// All inputs must be in the same format and same schema.
 #[derive(clap::Args)]
-struct ConvertArgs {
+struct CatArgs {
     /// output_format will be inferred if not given.
     ///
     /// Supports: CSV/TSV, Parquet, JSON, IPC (arrow), XLSX, SQLite, DuckDB, MD/Markdown,
@@ -481,7 +507,13 @@ struct ConvertArgs {
     paths: Vec<std::path::PathBuf>,
 }
 
-/// Print metadata, including schema and summary statistics, of the input dataframes
+/// Print metadata (schema and summary statistics) of input dataframes.
+///
+/// Example:
+///
+///   $ dataframe_convert metadata data/sample.csv
+/// GEN-BEGIN-META
+/// GEN-END-META
 #[derive(clap::Args)]
 struct MetadataArgs {
     #[command(flatten)]
@@ -531,11 +563,7 @@ fn parse_dtype(raw: &str, args: &[String]) -> Result<dataframe_convert::DataType
         "b" | "bool" | "boolean" => DataTypeSer::Bool,
         "date" => DataTypeSer::Date { ifmt, ofmt },
         "time" => DataTypeSer::Time { ifmt, ofmt },
-        "duration" | "timedelta" => DataTypeSer::Duration {
-            from_int: args.iter().any(|a| *a == "from_int"),
-            to_int: args.iter().any(|a| *a == "to_int"),
-            unit,
-        },
+        "duration" | "timedelta" => DataTypeSer::Duration { unit },
         "dt" | "datetime" => DataTypeSer::Datetime {
             ifmt,
             ofmt,

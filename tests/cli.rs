@@ -9,10 +9,10 @@ fn run(dir: &TempDir, input_csv: &str, ext: &str) -> String {
     let inp = dir.path().join("in.csv");
     std::fs::write(&inp, input_csv).unwrap();
     let out = dir.path().join(format!("out.{ext}"));
-    let r = bin().arg("convert").arg(&inp).arg(&out).output().unwrap();
+    let r = bin().arg("cat").arg(&inp).arg(&out).output().unwrap();
     assert!(
         r.status.success(),
-        "convert csv→{ext}: {}",
+        "cat csv→{ext}: {}",
         String::from_utf8_lossy(&r.stderr)
     );
     std::fs::read_to_string(&out).unwrap()
@@ -32,7 +32,7 @@ fn csv_to_tsv() {
     let inp = dir.path().join("in.csv");
     std::fs::write(&inp, "a,b\n1,x\n2,y\n").unwrap();
     let out = dir.path().join("out.tsv");
-    let r = bin().arg("convert").arg(&inp).arg(&out).output().unwrap();
+    let r = bin().arg("cat").arg(&inp).arg(&out).output().unwrap();
     assert!(r.status.success(), "{}", String::from_utf8_lossy(&r.stderr));
     let content = std::fs::read_to_string(&out).unwrap();
     assert!(content.contains("a\tb"), "uses tab separator: {content:?}");
@@ -45,7 +45,7 @@ fn csv_to_parquet() {
     let inp = dir.path().join("in.csv");
     std::fs::write(&inp, "a,b\n1,x\n2,y\n").unwrap();
     let out = dir.path().join("out.parquet");
-    let r = bin().arg("convert").arg(&inp).arg(&out).output().unwrap();
+    let r = bin().arg("cat").arg(&inp).arg(&out).output().unwrap();
     assert!(r.status.success(), "{}", String::from_utf8_lossy(&r.stderr));
     assert!(out.exists() && out.metadata().unwrap().len() > 0);
 }
@@ -64,7 +64,7 @@ fn csv_to_ipc() {
     let inp = dir.path().join("in.csv");
     std::fs::write(&inp, "a,b\n1,x\n2,y\n").unwrap();
     let out = dir.path().join("out.ipc");
-    let r = bin().arg("convert").arg(&inp).arg(&out).output().unwrap();
+    let r = bin().arg("cat").arg(&inp).arg(&out).output().unwrap();
     assert!(r.status.success(), "{}", String::from_utf8_lossy(&r.stderr));
     assert!(out.exists() && out.metadata().unwrap().len() > 0);
 }
@@ -76,7 +76,7 @@ fn explicit_csv_separator() {
     std::fs::write(&inp, "a|b\n1|x\n2|y\n").unwrap();
     let out = dir.path().join("out.json");
     let r = bin()
-        .arg("convert")
+        .arg("cat")
         .arg("-i")
         .arg("csv:sep=|")
         .arg(&inp)
@@ -95,7 +95,7 @@ fn explicit_format_flags() {
     std::fs::write(&inp, "a,b\n1,x\n2,y\n").unwrap();
     let out = dir.path().join("data.out");
     let r = bin()
-        .arg("convert")
+        .arg("cat")
         .arg("-i")
         .arg("csv")
         .arg("-o")
@@ -120,7 +120,7 @@ fn explicit_tsv_format() {
     std::fs::write(&inp, "a,b\n1,x\n2,y\n").unwrap();
     let out = dir.path().join("out.tsv");
     let r = bin()
-        .arg("convert")
+        .arg("cat")
         .arg("-i")
         .arg("csv")
         .arg("-o")
@@ -181,14 +181,14 @@ fn csv_roundtrip_inference() {
     let mid = dir.path().join("mid.json");
     let out = dir.path().join("out.csv");
 
-    let r = bin().arg("convert").arg(&inp).arg(&mid).output().unwrap();
+    let r = bin().arg("cat").arg(&inp).arg(&mid).output().unwrap();
     assert!(
         r.status.success(),
         "csv→json: {}",
         String::from_utf8_lossy(&r.stderr)
     );
 
-    let r = bin().arg("convert").arg(&mid).arg(&out).output().unwrap();
+    let r = bin().arg("cat").arg(&mid).arg(&out).output().unwrap();
     assert!(
         r.status.success(),
         "json→csv: {}",
@@ -208,6 +208,6 @@ fn bad_format_fails() {
     let inp = dir.path().join("in.csv");
     std::fs::write(&inp, "a\n1\n").unwrap();
     let out = dir.path().join("out.xyz");
-    let r = bin().arg("convert").arg(&inp).arg(&out).output().unwrap();
+    let r = bin().arg("cat").arg(&inp).arg(&out).output().unwrap();
     assert!(!r.status.success(), "unknown extension should fail");
 }

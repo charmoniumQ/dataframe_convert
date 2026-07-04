@@ -12,10 +12,14 @@ block = pathlib.Path(sys.argv[5])
 content = target_file.read_text()
 if marker_start not in content:
     print(f"{marker_start!r} not in {target_file}")
+    sys.exit(1)
 if marker_end not in content:
     print(f"{marker_end!r} not in {target_file}")
-before = content[:content.index(marker_start) + len(marker_start)]
-after = content[content.index(marker_end):]
+    sys.exit(1)
+begin = content.index(marker_start) + len(marker_start)
+end = content.index(marker_end, begin)
+before = content[:begin]
+after = content[end:]
 target_file.write_text(
-    before + textwrap.indent(block.read_text().strip(), indentation, lambda _: True) + after[1:]
+    before + textwrap.indent(block.read_text().strip(), indentation, lambda _: True) + after
 )

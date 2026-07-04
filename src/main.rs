@@ -516,7 +516,7 @@ struct CatArgs {
 ///     file_size: 358
 ///     mem_size: 162
 ///     overhead: 2.2098765432098766
-///     parse_secs: 0.02313957
+///     parse_secs: 0.028144523
 ///     n_rows: 5
 ///     columns:
 ///     - name: id
@@ -616,7 +616,8 @@ struct CatArgs {
 ///         most_common:
 ///           admin: 2
 ///           user: 2
-///           moderator: 1///     # END
+///           moderator: 1
+///     # END
 ///
 #[derive(clap::Args)]
 struct MetadataArgs {

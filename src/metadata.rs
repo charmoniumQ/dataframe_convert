@@ -96,7 +96,7 @@ pub enum DtypeMetadata {
     Categorical {
         n_unique: usize,
         #[serde(serialize_with = "serialize_most_common")]
-        n_most_common: Vec<(String, usize)>,
+        most_common: Vec<(String, usize)>,
     },
     #[serde(rename = "none")]
     None,
@@ -153,7 +153,7 @@ fn categorical_metadata(series: &Series) -> DtypeMetadata {
     const N_MOST_COMMON: usize = 3;
 
     let n_unique = series.n_unique().unwrap_or(0);
-    let n_most_common = series
+    let most_common = series
         .value_counts(true, true, "count".into(), false)
         .ok()
         .map(|df| {
@@ -162,7 +162,11 @@ fn categorical_metadata(series: &Series) -> DtypeMetadata {
             let cnts = df.column(names[1].as_str()).unwrap();
             (0..df.height().min(N_MOST_COMMON))
                 .filter_map(|i| {
-                    let label = format!("{}", vals.get(i).ok()?);
+                    let label = match vals.get(i).ok()? {
+                        AnyValue::String(s) => s.to_string(),
+                        AnyValue::StringOwned(s) => s.to_string(),
+                        other => format!("{other}"),
+                    };
                     let count = cnts.get(i).ok()?.try_extract::<u32>().unwrap_or(0) as usize;
                     Some((label, count))
                 })
@@ -172,7 +176,7 @@ fn categorical_metadata(series: &Series) -> DtypeMetadata {
 
     DtypeMetadata::Categorical {
         n_unique,
-        n_most_common,
+        most_common,
     }
 }
 

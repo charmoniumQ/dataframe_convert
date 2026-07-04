@@ -211,3 +211,45 @@ fn bad_format_fails() {
     let r = bin().arg("cat").arg(&inp).arg(&out).output().unwrap();
     assert!(!r.status.success(), "unknown extension should fail");
 }
+
+#[test]
+fn metadata_sample_csv() {
+    let r = bin()
+        .arg("metadata")
+        .arg("--dtypes")
+        .arg("id=int")
+        .arg("--dtypes")
+        .arg("score=float")
+        .arg("--dtypes")
+        .arg("active=bool")
+        .arg("--dtypes")
+        .arg("birth_date=date:ifmt=%Y-%m-%d")
+        .arg("--dtypes")
+        .arg("created_at=datetime:ifmt=%Y-%m-%dT%H:%M:%S")
+        .arg("--dtypes")
+        .arg("session_ms=duration:unit=ms")
+        .arg("--dtypes")
+        .arg("role=cat")
+        .arg("data/sample.csv")
+        .output()
+        .unwrap();
+    assert!(
+        r.status.success(),
+        "{}",
+        String::from_utf8_lossy(&r.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&r.stdout);
+    assert!(stdout.contains("id"), "{stdout}");
+    assert!(stdout.contains("name"), "{stdout}");
+    assert!(stdout.contains("score"), "{stdout}");
+    assert!(stdout.contains("active"), "{stdout}");
+    assert!(stdout.contains("birth_date"), "{stdout}");
+    assert!(stdout.contains("created_at"), "{stdout}");
+    assert!(stdout.contains("session_ms"), "{stdout}");
+    assert!(stdout.contains("role"), "{stdout}");
+    assert!(stdout.contains("n_rows: 5"), "{stdout}");
+    assert!(stdout.contains("date"), "{stdout}");
+    assert!(stdout.contains("datetime"), "{stdout}");
+    assert!(stdout.contains("duration"), "{stdout}");
+    assert!(stdout.contains("cat"), "{stdout}");
+}

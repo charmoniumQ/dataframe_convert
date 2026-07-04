@@ -511,9 +511,113 @@ struct CatArgs {
 ///
 /// Example:
 ///
-///   $ dataframe_convert metadata data/sample.csv
-/// GEN-BEGIN-META
-/// GEN-END-META
+///     $ dataframe_convert metadata data/sample.csv
+///     source: data/sample.csv
+///     file_size: 358
+///     mem_size: 162
+///     overhead: 2.2098765432098766
+///     parse_secs: 0.02313957
+///     n_rows: 5
+///     columns:
+///     - name: id
+///       dtype: u8
+///       count: 5
+///       non_null_count: 5
+///       mem_size: 5
+///       dtype_specific_meta:
+///         kind: numeric
+///         mean: 3.0
+///         stddev: 1.5811388300841898
+///         quantiles:
+///           min: 1.0
+///           25%: 2.0
+///           50%: 3.0
+///           75%: 4.0
+///           max: 5.0
+///     - name: name
+///       dtype: str
+///       count: 5
+///       non_null_count: 5
+///       mem_size: 19
+///       dtype_specific_meta:
+///         kind: categorical
+///         n_unique: 5
+///         most_common:
+///           Alice: 1
+///           Bob: 1
+///           Carol: 1
+///     - name: score
+///       dtype: f64
+///       count: 5
+///       non_null_count: 5
+///       mem_size: 40
+///       dtype_specific_meta:
+///         kind: numeric
+///         mean: 78.52000000000001
+///         stddev: 20.63545492592785
+///         quantiles:
+///           min: 45.1
+///           25%: 72.3
+///           50%: 88.7
+///           75%: 91.0
+///           max: 95.5
+///     - name: active
+///       dtype: bool
+///       count: 5
+///       non_null_count: 5
+///       mem_size: 1
+///       dtype_specific_meta:
+///         kind: categorical
+///         n_unique: 2
+///         most_common:
+///           'true': 3
+///           'false': 2
+///     - name: birth_date
+///       dtype: date
+///       count: 5
+///       non_null_count: 5
+///       mem_size: 20
+///       dtype_specific_meta:
+///         kind: datetime
+///         unit: ms
+///         tz: null
+///     - name: created_at
+///       dtype: datetime[μs]
+///       count: 5
+///       non_null_count: 5
+///       mem_size: 40
+///       dtype_specific_meta:
+///         kind: datetime
+///         unit: us
+///         tz: null
+///     - name: session_ms
+///       dtype: u16
+///       count: 5
+///       non_null_count: 5
+///       mem_size: 10
+///       dtype_specific_meta:
+///         kind: numeric
+///         mean: 13900.0
+///         stddev: 17887.70527485289
+///         quantiles:
+///           min: 300.0
+///           25%: 5000.0
+///           50%: 7200.0
+///           75%: 12000.0
+///           max: 45000.0
+///     - name: role
+///       dtype: str
+///       count: 5
+///       non_null_count: 5
+///       mem_size: 27
+///       dtype_specific_meta:
+///         kind: categorical
+///         n_unique: 3
+///         most_common:
+///           admin: 2
+///           user: 2
+///           moderator: 1///     # END
+///
 #[derive(clap::Args)]
 struct MetadataArgs {
     #[command(flatten)]

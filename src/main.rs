@@ -6,6 +6,10 @@ use dataframe_convert::{InputFormat, OutputFormat};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    if cli.markdown_help {
+        clap_markdown::print_help_markdown::<Cli>();
+        return Ok(())
+    }
     match cli.command {
         Command::Cat(args) => {
             let (inputs, output) = args.paths.split_at(args.paths.len() - 1);
@@ -391,6 +395,9 @@ fn expand_input_path(path: &std::path::Path) -> Result<Vec<std::path::PathBuf>> 
 #[derive(Parser)]
 #[command(name = "dataframe_convert")]
 struct Cli {
+    #[arg(long, hide = true)]
+    markdown_help: bool,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -487,8 +494,8 @@ struct SharedOpts {
 ///
 /// Examples:
 ///
-///   $ dataframe_convert cat a.csv b.csv out.parquet
-///   $ dataframe_convert cat --no-infer --dtypes id=int data.json out.parquet
+///     $ dataframe_convert cat a.csv b.csv out.parquet
+///     $ dataframe_convert cat --no-infer --dtypes id=int data.json out.parquet
 ///
 /// All inputs must be in the same format and same schema.
 #[derive(clap::Args)]

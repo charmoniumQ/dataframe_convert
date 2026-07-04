@@ -9,23 +9,4 @@ python scripts/replace_block.py \
     '///     ' \
     <(cargo run -- metadata data/sample.csv)
 
-python scripts/replace_block.py \
-    README.md \
-    '    $ dataframe_convert --help' \
-    '    # END' \
-    '    ' \
-    <(cargo run -- --help)
-
-python scripts/replace_block.py \
-    README.md \
-    '    $ dataframe_convert cat --help' \
-    '    # END' \
-    '    ' \
-    <(cargo run -- cat --help)
-
-python scripts/replace_block.py \
-    README.md \
-    '    $ dataframe_convert metadata --help' \
-    '    # END' \
-    '    ' \
-    <(cargo run -- metadata --help)
+cargo run -- --markdown-help metadata > README.md

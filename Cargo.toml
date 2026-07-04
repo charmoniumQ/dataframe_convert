@@ -16,6 +16,7 @@ polars-core = "0.53"
 polars_excel_writer = "0.25"
 regex = "1"
 rusqlite = { version = "0.40", features = ["bundled"] }
+clap-markdown = "0.1.5"
 
 
 [dev-dependencies]
